@@ -76,8 +76,13 @@ def getClients(sns_ip,seriallist): #seriallist IS getDevices Function
         return None
 
 #def updateclientpolicy(apikey, networkid, clientmac, policy, policyid=None, suppressprint=False):
-def remediateClient(clientmac):
+def remediateClient(clientmac,nw): #clientmac is getClients  and nw is getNetwork
     try:
+        logger.info('Remediation Started')
+        meraki.updateclientpolicy(config.meraki_api, nw, clientmac, 'blocked', policyid=None,suppressprint=True)
+    except:
+        logger.error("Couldn't remediate the Misbehaviouring Client")
+
 
 if __name__ == '__main__':
     org = getOrg()
@@ -89,9 +94,12 @@ if __name__ == '__main__':
     devices= getDevices(nw)
     print(devices)
 
-    sns_ip = '192.168.128.2'
-    client = getClients(sns_ip,devices)
-    print(client)
+    sns_ip = '192.168.128.19'
+    client_mac = getClients(sns_ip,devices)
+    print(client_mac)
+
+    remediateClient(client_mac,nw)
+
 
 
 """TRYING TO ACHIEVE AUTO REMEDIATION SCENARIO WITH MERAKI CLOUD AND STEALTHWATCH CLOUD VIA AWS LAMBDA SNS AS TRIGGER
