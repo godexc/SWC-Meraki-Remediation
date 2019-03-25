@@ -2,11 +2,67 @@ import config
 import requests
 import json
 from meraki import meraki
+import logging
+
+#LOGGING INITITATED - TAKEN FROM ANAND KANANI's TBA Code #
+
+namelogfile = 'swc_meraki.log'
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = logging.FileHandler(namelogfile)
+datefmt='[%Y-%m-%d %H:%M:%S]'
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s',datefmt)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 
-print(meraki.myorgaccess(config.meraki_api,suppressprint=False))
+#print(meraki.myorgaccess(config.meraki_api,suppressprint=False))
+#print(meraki.getnetworklist(config.meraki_api, '796582', templateid=None, suppressprint=False))
+#print(meraki.getnetworkdevices(config.meraki_api, 'L_681169443639800470', suppressprint=True))
 
+def getOrg():
+    orglist = []
+    try:
+        if config.meraki_api != None:
+            logger.info('Get Organization Initiated')
+            org = meraki.myorgaccess(config.meraki_api,suppressprint=True)
+            for orgs in org:
+                orglist.append(orgs['id'])
+            return orglist
+        else:
+            logger.warning('Meraki API Key is either wrong or not provided in config.py file')
+    except:
+        logger.error("Couldn't retrieve the organization")
+        return None
 
+def getNetwork():
+    try:
+        orglist = getOrg()
+        logger.info('Organzations added to OrgList moving to Network List')
+        nwlist = meraki.getnetworklist(config.meraki_api, orglist[0], templateid=None, suppressprint=True) #THAT LINE NEEDS TO BE CHANGED, NOW IT IS STATIC FOR ONE ORGANIZATION
+        logger.info('Network List Has been Retrieved')
+        for nw in nwlist:
+            return nw['id']
+    except:
+        logger.error("Couldn't retrieve the Network")
+        return None
+
+def getDevices():
+    deviceSerialList = []
+    try:
+        nw = getNetwork()
+        logger.info('Searching for Devices Initated')
+        devicelist = meraki.getnetworkdevices(config.meraki_api, nw, suppressprint=True)
+        logger.info('Device List Has Been Retrieved')
+        for devices in devicelist:
+            deviceSerialList.append(devices['serial'])
+        print(deviceSerialList)
+        return deviceSerialList
+    except:
+        logger.error("Couldn't retrieve the Devices")
+        return None
+
+getDevices()
 
 """TRYING TO ACHIEVE AUTO REMEDIATION SCENARIO WITH MERAKI CLOUD AND STEALTHWATCH CLOUD VIA AWS LAMBDA SNS AS TRIGGER
 
@@ -21,12 +77,16 @@ NEEDS:
 -OVERALL FLOW
 def getOrg()
 GET/organizations => Retrieve return output[0]['id'] as organizationId
+myorgaccess(config.meraki_api,suppressprint=False)
 
 def getNetwork()
 GET/organizations/{organizationId}/networks => Retrieve return output[0]['id'] as NetworkId
+def getnetworklist(apikey, orgid, templateid=None, suppressprint=False):
 
 def getDevices()
 GET/networks/[networkId]/devices => Search for output[i]['model'] startswith MX and based on that use the same i return output[i]['serial']
+def getnetworkdevices(apikey, networkid, suppressprint=False):
+
 
 def getClients()
 GET/devices/[serial]/clients?timespan=7200 => Search for the IP Address specified in Stealthwatch Alert (SNS) for output[i]['ip']
@@ -39,80 +99,4 @@ to set device policy as blocked
 -AUTOMATED FLOW CAN BE FIRST USE GET/networks/[networkId]/devices as TO FIND ALL THE S/Ns then USE GET/devices/[serial]/clients RECURSIVELY
 TO FIND APPROPRIATE MAC-IP BINDING
 
-
--OUTPUT OF SNS AS FOLLOWS:
-From SNS: {
-"assigned_to": null,
-"assigned_to_username": null,
-"comments": {
-"comments": [
-{
-"comment": "Closed Due To Inactivity",
-"time": "2019-02-05T07:00:18.669396+00:00",
-"user": null
-},
-{
-"comment": "Updated by 1 observations",
-"time": "2019-01-05T08:29:11.371646+00:00",
-"user": null
-},
-{
-"comment": "Updated by 1 observations",
-"time": "2019-01-04T15:18:58.586224+00:00",
-"user": null
-},
-{
-"comment": "Updated by 1 observations",
-"time": "2019-01-03T19:16:04.726372+00:00",
-"user": null
-}
-],
-"count": 4,
-"text": "4 comments"
-},
-"created": "2019-01-03T15:40:00Z",
-"description": "This is a test alert of a service.",
-"hostname": "",
-"id": 69,
-"ips_when_created": [
-"192.168.101.13"
-],
-"last_modified": "2019-01-05T08:29:11.342857Z",
-"merit": 6,
-"natural_time": "1\u00a0month, 2\u00a0weeks ago",
-"new_comment": null,
-"obj_created": "2019-01-03T16:15:43.732118Z",
-"observations": [
-27447,
-29911,
-29528,
-28502
-],
-"priority": 20,
-"publish_time": "2019-01-03T16:15:43.686570+00:00",
-"resolved": true,
-"resolved_time": "2019-02-05T07:00:18.666997Z",
-"resolved_user": null,
-"rules_matched": null,
-"snooze_settings": null,
-"source": 67,
-"source_info": {
-"created": "2018-09-21T15:00:25.559925+00:00",
-"hostnames": [],
-"ips": [
-"192.168.101.13"
-],
-"name": "192.168.101.13",
-"namespace": "default"
-},
-"source_name": "192.168.101.13",
-"source_params": {
-"id": 67,
-"meta": "net-link",
-"name": "192.168.101.13"
-},
-"tags": [],
-"text": "Test Alert on 192.168.101.13\nhttps://cisco-hevyapan.obsrvbl.com/#/alerts/69",
-"time": "2019-01-05T07:40:00Z",
-"type": "Test Alert"
-}
+"""
