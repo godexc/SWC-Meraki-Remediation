@@ -35,9 +35,8 @@ def getOrg():
         logger.error("Couldn't retrieve the organization")
         return None
 
-def getNetwork():
+def getNetwork(orglist):
     try:
-        orglist = getOrg()
         logger.info('Organzations added to OrgList moving to Network List')
         nwlist = meraki.getnetworklist(config.meraki_api, orglist[0], templateid=None, suppressprint=True) #THAT LINE NEEDS TO BE CHANGED, NOW IT IS STATIC FOR ONE ORGANIZATION
         logger.info('Network List Has been Retrieved')
@@ -47,22 +46,53 @@ def getNetwork():
         logger.error("Couldn't retrieve the Network")
         return None
 
-def getDevices():
+def getDevices(nw):
     deviceSerialList = []
     try:
-        nw = getNetwork()
         logger.info('Searching for Devices Initated')
         devicelist = meraki.getnetworkdevices(config.meraki_api, nw, suppressprint=True)
         logger.info('Device List Has Been Retrieved')
         for devices in devicelist:
             deviceSerialList.append(devices['serial'])
-        print(deviceSerialList)
         return deviceSerialList
     except:
         logger.error("Couldn't retrieve the Devices")
         return None
 
-getDevices()
+def getClients(sns_ip,seriallist): #seriallist IS getDevices Function
+    try:
+        logger.info('Search for the Client MAC with Appropriate IP Address has been started, (iterate through devices in the order of MR,MS and MX) => This can be added')
+        for serial in seriallist:
+            connected_endpoints = meraki.getclients(config.meraki_api, serial, timestamp=86400, suppressprint=True)
+            logger.info('Clients have been gathered for %(serial)s ', {'serial' : serial})
+            for endpoint in connected_endpoints:
+                if endpoint['ip'] == sns_ip :
+                    logger.info('Device is found connected to %(serial)s MAC Value will be returned', {'serial':serial})
+                    return endpoint['mac']
+                else:
+                    logger.info('Client has not been found for %(serial)s ', {'serial' : serial})
+    except:
+        logger.error("Couldn't retrieve the Clients")
+        return None
+
+#def updateclientpolicy(apikey, networkid, clientmac, policy, policyid=None, suppressprint=False):
+def remediateClient(clientmac):
+    try:
+
+if __name__ == '__main__':
+    org = getOrg()
+    print(org)
+
+    nw = getNetwork(org)
+    print(nw)
+
+    devices= getDevices(nw)
+    print(devices)
+
+    sns_ip = '192.168.128.2'
+    client = getClients(sns_ip,devices)
+    print(client)
+
 
 """TRYING TO ACHIEVE AUTO REMEDIATION SCENARIO WITH MERAKI CLOUD AND STEALTHWATCH CLOUD VIA AWS LAMBDA SNS AS TRIGGER
 
@@ -91,6 +121,8 @@ def getnetworkdevices(apikey, networkid, suppressprint=False):
 def getClients()
 GET/devices/[serial]/clients?timespan=7200 => Search for the IP Address specified in Stealthwatch Alert (SNS) for output[i]['ip']
 equals SWCIP then use the same i return output[i]['mac']
+def getclients(apikey, serialnum, timestamp=86400, suppressprint=False)
+
 
 def remediateClient()
 PUT/networks/[networkId]/clients/[mac]/policy?timespan=1800&devicePolicy=Blocked => Use the MAC that has been found on the previous stage
