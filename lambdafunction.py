@@ -83,6 +83,30 @@ def remediateClient(clientmac,nw): #clientmac is getClients  and nw is getNetwor
     except:
         logger.error("Couldn't remediate the Misbehaviouring Client")
 
+def lambda_handler(event, context):
+    #print("Received event: " + json.dumps(event, indent=2))
+    message = event['Records'][0]['Sns']['Message']
+    #print("From SNS: " + message) TO PRINT FULL SNS MESSAGE TO CLOUDWATCH LOGS
+    message_json=json.loads(message)  #TO DESERIALIZE THE SNS JSON STRING TO
+    try:
+        alerting_ip=message_json["source_info"]["ips"][0]
+        logger.info("Able to Parse the Alerting IP Address")
+        org = getOrg()
+        nw = getNetwork(org)
+        devices=getDevices(nw)
+        client_mac = getClients(alerting_ip, devices)
+        remediateClient(client_mac,nw)
+        logger.info("Remediation successful for %(alerting_ip)s ", {'alerting_ip':alerting_ip})
+    except:
+        logger.error("Remediation Failed Please Check the Logs")
+        return None
+
+
+    #print(type(message_json)) TESTING PURPOSES TO SEE IF WE ARE PARSING THE ACTUAL DATA
+    #print(message_json["source_info"]["ips"][0]) TESTING PURPOSES TO SEE IF WE ARE PARSING THE ACTUAL DATA
+    return message
+
+
 
 if __name__ == '__main__':
     org = getOrg()
