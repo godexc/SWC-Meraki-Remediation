@@ -65,46 +65,52 @@ def getDevices(nw):
         logger.error("ERROR in Retrieving Devices", exc_info=True)
         return ("ERROR in Retrieving Devices" + str(err))
 
-def getClients(sns_ip,seriallist): #seriallist IS getDevices Function
+def getClients(sns_ip_list,seriallist): #seriallist IS getDevices Function
+    clientmaclist=[]
     try:
         logger.info('Search for the Client MAC with Appropriate IP Address has been started, (iterate through devices in the order of MR,MS and MX) => This can be added')
-        for serial in seriallist:
-            connected_endpoints = meraki.getclients(config.meraki_api, serial, timestamp=86400, suppressprint=True)
-            logger.info('Clients have been gathered for %(serial)s ', {'serial' : serial})
-            for endpoint in connected_endpoints:
-                if endpoint['ip'] == sns_ip :
-                    logger.info('Device is found connected to %(serial)s MAC Value will be returned', {'serial':serial})
-                    return endpoint['mac']
+        for client_ip in sns_ip_list:
+            for serial in seriallist:
+                connected_endpoints = meraki.getclients(config.meraki_api, serial, timestamp=86400, suppressprint=True)
+                logger.info('Clients have been gathered for %(serial)s ', {'serial' : serial})
+                for endpoint in connected_endpoints:
+                    if endpoint['ip'] == client_ip:
+                        logger.info('Device is found connected to %(serial)s MAC Value %(endpoint_mac)s will be added to list', {'serial':serial, 'endpoint_mac':endpoint['mac']})
+                        clientmaclist.append(endpoint['mac'])
+        return clientmaclist
     except Exception as err:
         logger.error("ERROR in Retrieving Clients", exc_info=True)
         return ("ERROR in Retrieving Clients" + str(err))
 
 
-def remediateClient(clientmac,nw): #clientmac is getClients  and nw is getNetwork
+def remediateClient(clientmaclist,nw): #clientmac is getClients  and nw is getNetwork
     try:
-        logger.info('Remediation Started')
-        meraki.updateclientpolicy(config.meraki_api, nw, clientmac, 'blocked', policyid=None,suppressprint=True)
-        return True
+        for clientmac in clientmaclist:
+            logger.info('Remediation Started for %(clientmac)s', {'clientmac':clientmac})
+            result=meraki.updateclientpolicy(config.meraki_api, nw, clientmac, 'blocked', policyid=None,suppressprint=True)
+            if result['type'] == 'blocked':
+                logger.info("Remediation successful for %(client_mac)s ", {'client_mac':client_mac})
+        logger.info("Remediation Finished", exc_info = True)
     except Exception as err:
         logger.error("ERROR in Remediating the Misbehaviouring Client", exc_info=True)
         return ("ERROR in Retrieving Clients" + str(err))
 
 def lambda_handler(event, context):
-    #print("Received event: " + json.dumps(event, indent=2))
+    alerting_ip_list=[]
     message = event['Records'][0]['Sns']['Message']
-    #print("From SNS: " + message) TO PRINT FULL SNS MESSAGE TO CLOUDWATCH LOGS
+    #print(message)
     message_json=json.loads(message)  #TO DESERIALIZE THE SNS JSON STRING TO
     try:
-        alerting_ip=message_json["source_info"]["ips"][0]
-        logger.info("Able to Parse the Alerting IP Address  %(alerting_ip)s",{'alerting_ip':alerting_ip} )
         org = getOrg()
         nw = getNetwork(org)
         devices=getDevices(nw)
-        client_mac = getClients(alerting_ip, devices)
-        if remediateClient(client_mac,nw) == True:
-            logger.info("Remediation successful for %(alerting_ip)s ", {'alerting_ip':alerting_ip})
-        else:
-            logger.info("Remediation is not successful for %(alerting_ip)s ", {'alerting_ip':alerting_ip})
+
+        for alerting_ip in message_json["source_info"]["ips"]:
+            alerting_ip_list.append(alerting_ip)
+            logger.info("Able to Parse the Alerting IP Address  %(alerting_ip)s",{'alerting_ip':alerting_ip} )
+
+        client_mac_list = getClients(alerting_ip_list, devices)
+        remediateClient(client_mac_list,nw)
     except Exception as err:
         logger.error("ERROR in Lambda", exc_info=True)
         return ("ERROR in Lambda" + str(err))
