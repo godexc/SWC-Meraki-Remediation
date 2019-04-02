@@ -1,19 +1,11 @@
 import config
-import requests
 import json
 from meraki import meraki
 import logging
 
-#LOGGING INITITATED - TAKEN FROM ANAND KANANI's TBA Code #
-
-"""namelogfile = 'swc_meraki.log'"""
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-"""handler = logging.FileHandler(namelogfile)
-datefmt='[%Y-%m-%d %H:%M:%S]'
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s',datefmt)
-handler.setFormatter(formatter)
-logger.addHandler(handler)"""
+
 
 def getOrg():
     orglist = []
